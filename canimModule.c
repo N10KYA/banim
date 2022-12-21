@@ -1,9 +1,15 @@
 #define PY_SSIZE_T_CLEAN // I'm told this is necessary in python3
+
+#ifndef NUMPY_CORE_INCLUDE_NUMPY_NOPREFIX_H_
+#define NUMPY_CORE_INCLUDE_NUMPY_NOPREFIX_H_
+#endif
+
 #include <Python.h>
 //#include "numpy/ndarraytypes.h"
 //#include "numpy/npy_3kcompat.h"
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
+#include "numpy/npy_interrupt.h"
 #include "py3cairo.h"
 
 /////////////////////////////////// MACROS /////////////////////////////////////
@@ -26,7 +32,14 @@ typedef struct {
 } Manim_Types;
 
 typedef struct {
+    int pixel_channels;
+    int pixel_width;
+    int pixel_height;
+} Manim_Scene_Vars;
+
+typedef struct {
     Manim_Types type;
+    Manim_Scene_Vars scene_vars;
 } CanimBits;
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -40,22 +53,77 @@ typedef struct {
 ////////////////////////////////// CAM FUNCS ////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////
 
+static PyObject *init_Scene(PyObject *self, PyObject *args){
+    /*  Initialises the scene variables. This is called from python and
+        should be called before any other function. 
+    */
+    CanimBits *canim;
+    int pixel_channels, pixel_width, pixel_height;
+
+    AssignAndCheck(canim, PyModule_GetState(self)); 
+    if(!PyArg_ParseTuple(args, "iii", &pixel_channels, &pixel_width, &pixel_height)) return NULL;
+
+    canim->scene_vars.pixel_channels = pixel_channels;
+    canim->scene_vars.pixel_width = pixel_width;
+    canim->scene_vars.pixel_height = pixel_height;
+
+    return Py_BuildValue("s", "Scene Initialised");
+}
+
+static PyObject* deinit_Scene(PyObject *self, PyObject *args) {
+    /*  Deinitialises the scene variables. This is called from python and
+        should be called after all other functions. 
+    */
+    CanimBits *canim;
+
+    AssignAndCheck(canim, PyModule_GetState(self)); 
+    if(!PyArg_ParseTuple(args, "")) return NULL;
+
+    canim->scene_vars.pixel_channels = -1;
+    canim->scene_vars.pixel_width = -1;
+    canim->scene_vars.pixel_height = -1;
+
+    return Py_BuildValue("s", "Scene Deinitialised");
+}
+
 static PyObject *FW_display_vectorized(PyObject *self, PyObject *args){
     /* C version of camera.display_vectorized that can be called from python */
     CanimBits *canim;
     PyObject *vmobject, *context;
-    PyArrayObject* points;
+    PyArrayObject* NPPoints;
+    double** data;
+    npy_intp* dims;
+    int i, j, k;
+    int checkTrigger = 0;
 
     AssignAndCheck(canim, PyModule_GetState(self)); 
-    if(!PyArg_ParseTuple(args, "OO", &vmobject, &context)) return NULL;
 
+    if(!PyArg_ParseTuple(args, "OO!", &vmobject, &PycairoContext_Type, &context)) return NULL;
     ArgTypeCheck(vmobject, canim->type.VMobject);
-    //ArgTypeCheck(context, &PycairoContext_Type);
 
-    //AssignAndCheck(points, PyObject_GetAttrString(vmobject, "points"));
+    AssignAndCheck(NPPoints, PyObject_GetAttrString(vmobject, "points"));
+    if(PyArray_TYPE(NPPoints) != NPY_FLOAT64) 
+        return PyErr_Format(PyExc_TypeError, "Expected uint8 array, got %d", PyArray_TYPE(NPPoints));
+
+    *dims = PyArray_DIMS(NPPoints);
+
+    PyArray_AsCArray(&NPPoints, &data, dims, 2, PyArray_DescrFromType(NPY_DOUBLE));
+    if(PyErr_Occurred()) return NULL;
+
+    checkTrigger = 0;
+    for(i = 0; i < dims[0]; i++){
+        for(j = 0; j < dims[1]; j++){
+            if(isfinite(data[i][j])) checkTrigger = 1;
+        }}
+    
+    if(checkTrigger) {
+        PyArray_Free(NPPoints, data);
+        PyObject_SetAttrString(vmobject, "points",
+            PyArray_SimpleNew(2, ((npy_intp[]){1,3}), NPY_DOUBLE));
+    }
 
 
-
+    Py_DECREF(NPPoints);
 
     return Py_BuildValue("s", "Type Check completed");
 }
@@ -122,7 +190,11 @@ static int canim_modexec(PyObject *m) {
     place = (PyTypeObject*) placeholder;
 
     AssignTypeAndCheck(canim->type.Mobject, "Mobject", placeholder);
-    AssignTypeAndCheck(canim->type.Mobject, "VMobject", placeholder);
+    AssignTypeAndCheck(canim->type.VMobject, "VMobject", placeholder);
+
+    canim->scene_vars.pixel_channels = -1;
+    canim->scene_vars.pixel_width = -1;
+    canim->scene_vars.pixel_height = -1;
 
     #undef AssignTypeAndCheck
 
@@ -171,6 +243,8 @@ static PyMethodDef CanimMethods[] = {
     */
     {"canim_test", canim_test, METH_VARARGS, "Test Canim"},
     {"threanim_test", threanim_test, METH_VARARGS, "Test Threanim"},
+    {"init_Scene", init_Scene, METH_VARARGS, "Initialise Scene"},
+    {"deinit_Scene", deinit_Scene, METH_VARARGS, "Deinitialise Scene"},
     {"FW_display_vectorized", FW_display_vectorized, METH_VARARGS, "Test typechecking"},
     {NULL, NULL, 0, NULL}
 };

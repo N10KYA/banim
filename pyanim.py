@@ -52,4 +52,4 @@ class myCamera(Camera):
         result = binaryMerge(pixelArrays, imgMerge)
         self.pixel_array = imgMerge(self.pixel_array, result)
         
-
+np.ndarray

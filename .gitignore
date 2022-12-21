@@ -1,4 +1,13 @@
 media
 __pycache__
-.vscode
 .history
+examplesource
+*.o
+build
+banimTestEnv
+debug
+c-ext-example-pycairo-main
+canim.egg-info
+myPractice
+intro.py
+output.xlsx
