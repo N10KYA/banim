@@ -111,7 +111,7 @@ static PyObject *FW_display_vectorized(PyObject *self, PyObject *args){
     if(PyErr_Occurred()) return NULL;
 
     checkTrigger = 0;
-    for(i = 0; i < dims[0]; i++){
+    for(i = 0; i < dims[0] || checkTrigger == 0; i++){
         for(j = 0; j < dims[1]; j++){
             if(isfinite(data[i][j])) checkTrigger = 1;
         }}
@@ -246,6 +246,7 @@ static PyMethodDef CanimMethods[] = {
     {"init_Scene", init_Scene, METH_VARARGS, "Initialise Scene"},
     {"deinit_Scene", deinit_Scene, METH_VARARGS, "Deinitialise Scene"},
     {"FW_display_vectorized", FW_display_vectorized, METH_VARARGS, "Test typechecking"},
+    //{"dropIfInfinite", dropIfInfinite, METH_VARARGS, "Checks something like a list of "}
     {NULL, NULL, 0, NULL}
 };
 

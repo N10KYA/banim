@@ -3,6 +3,7 @@ __pycache__
 .history
 examplesource
 *.o
+*.so
 build
 banimTestEnv
 debug
@@ -11,3 +12,4 @@ canim.egg-info
 myPractice
 intro.py
 output.xlsx
+.vscode
