@@ -11,3 +11,5 @@ canim.egg-info
 myPractice
 intro.py
 output.xlsx
+.venv
+builddir/
